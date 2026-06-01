@@ -29,25 +29,40 @@ export default function MapScreen({ navigation }: any) {
     setLoading(true);
     setDenied(false);
 
-    const { status } = await Location.requestForegroundPermissionsAsync();
-    if (status !== 'granted') {
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        setDenied(true);
+        return;
+      }
+      const currentLocation =
+        (await Location.getLastKnownPositionAsync()) ??
+        (await Promise.race([
+          Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
+          new Promise<Location.LocationObject | null>(resolve => setTimeout(() => resolve(null), 15000)),
+        ]));
+
+      if (!currentLocation) {
+        setDenied(true);
+        return;
+      }
+
+      setLocation(currentLocation);
+
+      if (auth.currentUser) {
+        await updateUserLocation(auth.currentUser.uid, {
+          latitude: currentLocation.coords.latitude,
+          longitude: currentLocation.coords.longitude,
+        });
+        const users = await fetchCandidates(auth.currentUser.uid);
+        setCandidates(users);
+      }
+    } catch (error) {
+      console.error('Error loading map location:', error);
       setDenied(true);
+    } finally {
       setLoading(false);
-      return;
     }
-
-    const currentLocation = await Location.getCurrentPositionAsync({});
-    setLocation(currentLocation);
-
-    if (auth.currentUser) {
-      await updateUserLocation(auth.currentUser.uid, {
-        latitude: currentLocation.coords.latitude,
-        longitude: currentLocation.coords.longitude,
-      });
-      const users = await fetchCandidates(auth.currentUser.uid);
-      setCandidates(users);
-    }
-    setLoading(false);
   };
 
   useEffect(() => {
