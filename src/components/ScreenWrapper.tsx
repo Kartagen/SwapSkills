@@ -1,33 +1,36 @@
 import React from 'react';
-import { View, StyleSheet, StatusBar, Platform } from 'react-native';
-import { useTheme } from 'react-native-paper';
+import { View, StyleSheet, StatusBar, Platform, StyleProp, ViewStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useAppTheme } from '../theme/ThemeProvider';
 
 interface ScreenWrapperProps {
   children: React.ReactNode;
-  style?: any;
-  withScrollView?: boolean; // Future proofing if we want scroll view wrapper
+  style?: StyleProp<ViewStyle>;
 }
 
 export default function ScreenWrapper({ children, style }: ScreenWrapperProps) {
-  const theme = useTheme();
+  const { palette, isDark } = useAppTheme();
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]} edges={['top', 'left', 'right']}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: palette.background }]}
+      edges={['top', 'left', 'right']}
+    >
       <StatusBar
-        barStyle="dark-content"
-        backgroundColor={theme.colors.background}
+        barStyle={isDark ? 'light-content' : 'dark-content'}
+        backgroundColor={palette.background}
         translucent={Platform.OS === 'android'}
       />
-      <View style={[{ flex: 1 }, style]}>
-        {children}
-      </View>
+      <View style={[styles.content, style]}>{children}</View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
+  },
+  content: {
     flex: 1,
   },
 });

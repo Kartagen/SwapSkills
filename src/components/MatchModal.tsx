@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, StyleSheet, Modal } from 'react-native';
 import { Text, Button, Avatar } from 'react-native-paper';
+import { palette, spacing } from '../theme';
 
 interface MatchModalProps {
   visible: boolean;
@@ -31,7 +32,7 @@ export default function MatchModal({ visible, matchedUser, onClose, onSendMessag
             <Button mode="contained" onPress={onSendMessage} style={styles.button}>
                 Send a Message
             </Button>
-            <Button mode="outlined" onPress={onClose} style={styles.button} textColor="white" buttonColor="transparent">
+            <Button mode="outlined" onPress={onClose} style={styles.button} textColor={palette.white} buttonColor="transparent">
                 Keep Swiping
             </Button>
           </View>
@@ -44,21 +45,21 @@ export default function MatchModal({ visible, matchedUser, onClose, onSendMessag
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.85)',
+    backgroundColor: palette.scrim,
     justifyContent: 'center',
     alignItems: 'center',
   },
   container: {
     width: '80%',
     alignItems: 'center',
-    gap: 20,
+    gap: spacing.xl,
   },
   title: {
-    color: '#10b981', // Emerald 500
+    color: palette.success,
     fontWeight: 'bold',
   },
   subtitle: {
-    color: 'white',
+    color: palette.white,
     textAlign: 'center',
   },
   avatars: {
@@ -66,9 +67,9 @@ const styles = StyleSheet.create({
   },
   buttons: {
     width: '100%',
-    gap: 15,
+    gap: spacing.md,
   },
   button: {
-    borderColor: 'white',
+    borderColor: palette.white,
   }
 });

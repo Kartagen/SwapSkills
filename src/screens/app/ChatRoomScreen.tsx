@@ -1,16 +1,19 @@
-import React, { useState, useEffect, useCallback, useLayoutEffect } from 'react';
+import React, { useState, useEffect, useCallback, useLayoutEffect, useMemo } from 'react';
 import { GiftedChat, IMessage, Bubble, Send, InputToolbar } from 'react-native-gifted-chat';
 import { collection, addDoc, orderBy, query, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '../../config/firebase';
 import { getChatId, unmatchUser } from '../../services/userService';
-import { View, StyleSheet, KeyboardAvoidingView, Platform, Alert } from 'react-native';
-import { Text, useTheme, IconButton, Avatar, Menu } from 'react-native-paper';
+import { View, StyleSheet, Alert } from 'react-native';
+import { Text, IconButton, Avatar, Menu } from 'react-native-paper';
+import { usePalette } from '../../theme/ThemeProvider';
+import { Palette, spacing } from '../../theme';
 
 export default function ChatRoomScreen({ route, navigation }: any) {
     const { recipient } = route.params;
     const [messages, setMessages] = useState<IMessage[]>([]);
     const currentUser = auth.currentUser;
-    const theme = useTheme();
+    const palette = usePalette();
+    const styles = useMemo(() => makeStyles(palette), [palette]);
     const [menuVisible, setMenuVisible] = useState(false);
 
     const handleUnmatch = () => {
@@ -51,14 +54,14 @@ export default function ChatRoomScreen({ route, navigation }: any) {
                 </View>
             ),
             headerRight: () => (
-                <View style={{ marginRight: 10 }}>
+                <View style={{ marginRight: spacing.sm }}>
                     <Menu
                         visible={menuVisible}
                         onDismiss={() => setMenuVisible(false)}
-                        anchor={<IconButton icon="dots-vertical" onPress={() => setMenuVisible(true)} />}
+                        anchor={<IconButton icon="dots-vertical" accessibilityLabel="Chat options" onPress={() => setMenuVisible(true)} />}
                     >
                         <Menu.Item onPress={() => { setMenuVisible(false); navigation.navigate('MainTabs', { screen: 'Profile', params: { user: recipient } }); }} title="View Profile" leadingIcon="account" />
-                        <Menu.Item onPress={handleUnmatch} title="Unmatch" leadingIcon="account-remove" titleStyle={{ color: 'red' }} />
+                        <Menu.Item onPress={handleUnmatch} title="Unmatch" leadingIcon="account-remove" titleStyle={{ color: palette.error }} />
                     </Menu>
                 </View>
             ),
@@ -119,26 +122,26 @@ export default function ChatRoomScreen({ route, navigation }: any) {
             {...props}
             wrapperStyle={{
                 right: {
-                    backgroundColor: theme.colors.primary,
+                    backgroundColor: palette.primary,
                     borderRadius: 15,
                     padding: 2,
                 },
                 left: {
-                    backgroundColor: '#E2E8F0',
+                    backgroundColor: palette.slate200,
                     borderRadius: 15,
                     padding: 2,
                 },
             }}
             textStyle={{
-                right: { color: '#fff' },
-                left: { color: '#1e293b' },
+                right: { color: palette.onMedia },
+                left: { color: palette.slate800 },
             }}
         />
     );
 
     const renderSend = (props: any) => (
         <Send {...props} containerStyle={styles.sendContainer}>
-            <IconButton icon="send" iconColor={theme.colors.primary} size={24} />
+            <IconButton icon="send" accessibilityLabel="Send message" iconColor={palette.primary} size={24} />
         </Send>
     );
 
@@ -165,35 +168,34 @@ export default function ChatRoomScreen({ route, navigation }: any) {
                 renderInputToolbar={renderInputToolbar}
                 isScrollToBottomEnabled
             />
-            {Platform.OS === 'android' && <KeyboardAvoidingView behavior="padding" keyboardVerticalOffset={100} />}
         </View>
     );
 }
 
-const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#F8FAFC',
-        paddingBottom: 20,
-    },
-    headerTitle: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    headerText: {
-        marginLeft: 10,
-        fontWeight: 'bold',
-    },
-    sendContainer: {
-        justifyContent: 'center',
-        alignItems: 'center',
-        alignSelf: 'center',
-        marginRight: 10,
-    },
-    inputToolbar: {
-        backgroundColor: '#fff',
-        borderTopWidth: 1,
-        borderTopColor: '#f1f1f1',
-        paddingVertical: 5,
-    },
-});
+const makeStyles = (palette: Palette) =>
+    StyleSheet.create({
+        container: {
+            flex: 1,
+            backgroundColor: palette.background,
+        },
+        headerTitle: {
+            flexDirection: 'row',
+            alignItems: 'center',
+        },
+        headerText: {
+            marginLeft: spacing.sm,
+            fontWeight: 'bold',
+        },
+        sendContainer: {
+            justifyContent: 'center',
+            alignItems: 'center',
+            alignSelf: 'center',
+            marginRight: spacing.sm,
+        },
+        inputToolbar: {
+            backgroundColor: palette.surface,
+            borderTopWidth: 1,
+            borderTopColor: palette.slate100,
+            paddingVertical: spacing.xs,
+        },
+    });

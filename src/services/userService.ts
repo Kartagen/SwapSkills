@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc, updateDoc, collection, query, limit, getDocs, arrayUnion, arrayRemove } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, collection, query, limit, orderBy, getDocs, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../config/firebase';
 
@@ -215,4 +215,40 @@ export const fetchMatches = async (currentUid: string): Promise<UserProfile[]> =
 
 export const getChatId = (uid1: string, uid2: string) => {
     return [uid1, uid2].sort().join('_');
+};
+
+/** A match enriched with its conversation's most recent message (if any). */
+export interface MatchSummary extends UserProfile {
+  lastMessage?: string;
+  lastMessageAt?: number; // epoch ms; undefined when no messages exist yet
+}
+
+/**
+ * Like `fetchMatches`, but attaches the last message of each conversation so the
+ * UI can split brand-new matches (no messages) from active chats and show a real
+ * preview + timestamp instead of placeholder text.
+ */
+export const fetchMatchesWithChats = async (currentUid: string): Promise<MatchSummary[]> => {
+  const matches = await fetchMatches(currentUid);
+
+  const summaries = await Promise.all(
+    matches.map(async (profile): Promise<MatchSummary> => {
+      try {
+        const chatId = getChatId(currentUid, profile.uid);
+        const messagesRef = collection(db, 'chats', chatId, 'messages');
+        const snap = await getDocs(query(messagesRef, orderBy('createdAt', 'desc'), limit(1)));
+
+        if (snap.empty) return profile;
+
+        const data = snap.docs[0].data();
+        const createdAt = data.createdAt?.toMillis ? data.createdAt.toMillis() : undefined;
+        return { ...profile, lastMessage: data.text, lastMessageAt: createdAt };
+      } catch (e) {
+        console.warn('Error loading last message for', profile.uid, e);
+        return profile;
+      }
+    })
+  );
+
+  return summaries;
 };

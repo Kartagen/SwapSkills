@@ -1,39 +1,64 @@
 import React, { useState } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { Text, Button, TextInput, HelperText } from 'react-native-paper';
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { Text, Button, TextInput, HelperText, Snackbar } from 'react-native-paper';
+import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { auth } from '../../config/firebase';
 import ScreenWrapper from '../../components/ScreenWrapper';
+import { spacing } from '../../theme';
+
+type Field = 'email' | 'password' | null;
 
 export default function LoginScreen({ navigation }: any) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [errorField, setErrorField] = useState<Field>(null);
+  const [snackbar, setSnackbar] = useState('');
 
   const handleLogin = async () => {
     if (!email || !password) {
       setError('Please fill in all fields');
+      setErrorField(!email ? 'email' : 'password');
       return;
     }
 
     setLoading(true);
     setError('');
+    setErrorField(null);
 
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      // Navigation will be handled by RootNavigator's onAuthStateChanged
+      // Navigation handled by RootNavigator's onAuthStateChanged
     } catch (err: any) {
       let msg = 'Login failed';
-      if (err.code === 'auth/invalid-email') msg = 'Invalid email address';
-      if (err.code === 'auth/user-not-found') msg = 'User not found';
-      if (err.code === 'auth/wrong-password') msg = 'Incorrect password';
-      if (err.code === 'auth/invalid-credential') msg = 'Invalid credentials';
+      let field: Field = null;
+      if (err.code === 'auth/invalid-email') { msg = 'Invalid email address'; field = 'email'; }
+      if (err.code === 'auth/user-not-found') { msg = 'No account found for this email'; field = 'email'; }
+      if (err.code === 'auth/wrong-password') { msg = 'Incorrect password'; field = 'password'; }
+      if (err.code === 'auth/invalid-credential') { msg = 'Invalid email or password'; field = 'password'; }
       setError(msg);
-      // Optional: Log error for debugging
-      // console.error(err);
+      setErrorField(field);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    if (!email) {
+      setError('Enter your email first, then tap "Forgot password".');
+      setErrorField('email');
+      return;
+    }
+    try {
+      await sendPasswordResetEmail(auth, email);
+      setError('');
+      setErrorField(null);
+      setSnackbar('Password reset email sent. Check your inbox.');
+    } catch {
+      setError('Could not send reset email. Check the address and try again.');
+      setErrorField('email');
     }
   };
 
@@ -49,15 +74,22 @@ export default function LoginScreen({ navigation }: any) {
           autoCapitalize="none"
           value={email}
           onChangeText={setEmail}
-          error={!!error}
+          error={errorField === 'email'}
         />
         <TextInput
           label="Password"
           mode="outlined"
-          secureTextEntry
+          secureTextEntry={!showPassword}
           value={password}
           onChangeText={setPassword}
-          error={!!error}
+          error={errorField === 'password'}
+          right={
+            <TextInput.Icon
+              icon={showPassword ? 'eye-off' : 'eye'}
+              onPress={() => setShowPassword(s => !s)}
+              accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
+            />
+          }
         />
 
         {error ? <HelperText type="error" visible={!!error}>{error}</HelperText> : null}
@@ -71,17 +103,24 @@ export default function LoginScreen({ navigation }: any) {
         >
           Login
         </Button>
+        <Button onPress={handleForgotPassword} disabled={loading} compact>
+          Forgot password?
+        </Button>
         <Button onPress={() => navigation.navigate('Register')} disabled={loading}>
           Don't have an account? Sign up
         </Button>
       </View>
+
+      <Snackbar visible={!!snackbar} onDismiss={() => setSnackbar('')} duration={4000}>
+        {snackbar}
+      </Snackbar>
     </ScreenWrapper>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    padding: 20,
+    padding: spacing.xl,
     justifyContent: 'center',
   },
   title: {
@@ -89,9 +128,9 @@ const styles = StyleSheet.create({
     marginBottom: 30,
   },
   form: {
-    gap: 15,
+    gap: spacing.md,
   },
   button: {
-    marginTop: 10,
-  }
+    marginTop: spacing.sm,
+  },
 });

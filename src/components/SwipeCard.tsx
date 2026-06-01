@@ -1,14 +1,19 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, StyleSheet, Image } from 'react-native';
 import { Text, Surface, Chip } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
 import { UserProfile } from '../services/userService';
+import { usePalette } from '../theme/ThemeProvider';
+import { Palette, spacing, radius } from '../theme';
 
 interface SwipeCardProps {
   card: UserProfile;
 }
 
 export default function SwipeCard({ card }: SwipeCardProps) {
+  const palette = usePalette();
+  const styles = useMemo(() => makeStyles(palette), [palette]);
+
   return (
     <Surface style={styles.card} elevation={5}>
       <View style={styles.imageWrapper}>
@@ -36,23 +41,33 @@ export default function SwipeCard({ card }: SwipeCardProps) {
       </View>
 
       <View style={styles.content}>
-        <Section title="CAN TEACH" chips={card.skills} chipStyle={styles.teachChip} />
-        <Section title="WANTS TO LEARN" chips={card.learning} chipStyle={styles.learnChip} />
+        <Section title="CAN TEACH" chips={card.skills} chipStyle={styles.teachChip} styles={styles} />
+        <Section title="WANTS TO LEARN" chips={card.learning} chipStyle={styles.learnChip} styles={styles} />
       </View>
     </Surface>
   );
 }
 
-function Section({ title, chips = [], chipStyle }: { title: string; chips: string[]; chipStyle: any }) {
+function Section({
+  title,
+  chips = [],
+  chipStyle,
+  styles,
+}: {
+  title: string;
+  chips: string[];
+  chipStyle: any;
+  styles: any;
+}) {
   if (!chips.length) return null;
 
   return (
     <View style={styles.section}>
       <Text style={styles.sectionLabel}>{title}</Text>
       <View style={styles.chips}>
-        {chips.slice(0, 4).map((item, index) => (
+        {chips.slice(0, 4).map(item => (
           <Chip
-            key={index}
+            key={item}
             compact
             style={chipStyle}
             textStyle={styles.chipText}
@@ -64,11 +79,12 @@ function Section({ title, chips = [], chipStyle }: { title: string; chips: strin
     </View>
   );
 }
-const styles = StyleSheet.create({
+
+const makeStyles = (palette: Palette) => StyleSheet.create({
   card: {
     height: '72%',
-    borderRadius: 24,
-    backgroundColor: '#FFFFFF',
+    borderRadius: radius.xl,
+    backgroundColor: palette.surface,
     overflow: 'hidden',
   },
 
@@ -92,31 +108,31 @@ const styles = StyleSheet.create({
 
   imageHeader: {
     position: 'absolute',
-    bottom: 16,
-    left: 16,
-    right: 16,
+    bottom: spacing.lg,
+    left: spacing.lg,
+    right: spacing.lg,
   },
 
   name: {
     fontSize: 26,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: palette.onMedia,
   },
 
   age: {
     fontWeight: '400',
     opacity: 0.85,
-    color: '#FFFFFF',
+    color: palette.onMedia,
   },
 
   city: {
-    marginTop: 4,
+    marginTop: spacing.xs,
     fontSize: 14,
-    color: '#E5E7EB',
+    color: palette.onMediaMuted,
   },
 
   content: {
-    padding: 16,
+    padding: spacing.lg,
   },
 
   section: {
@@ -127,24 +143,24 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     letterSpacing: 0.8,
-    color: '#64748B',
+    color: palette.slate500,
     marginBottom: 6,
   },
 
   chips: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: spacing.sm,
   },
 
   teachChip: {
-    backgroundColor: '#EEF2FF',
-    borderRadius: 14,
+    backgroundColor: palette.teachTint,
+    borderRadius: radius.md,
   },
 
   learnChip: {
-    backgroundColor: '#FFF7ED',
-    borderRadius: 14,
+    backgroundColor: palette.learnTint,
+    borderRadius: radius.md,
   },
 
   chipText: {

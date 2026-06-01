@@ -1,66 +1,99 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, StyleSheet, FlatList, TouchableOpacity, RefreshControl, ScrollView } from 'react-native';
-import { List, Text, Avatar, Divider, ActivityIndicator, useTheme, Searchbar } from 'react-native-paper';
+import { List, Text, Avatar, Divider, Searchbar } from 'react-native-paper';
+import { useIsFocused } from '@react-navigation/native';
 import ScreenWrapper from '../../components/ScreenWrapper';
+import EmptyState from '../../components/EmptyState';
+import LoadingView from '../../components/LoadingView';
 import { auth } from '../../config/firebase';
-import { fetchMatches, UserProfile } from '../../services/userService';
+import { fetchMatchesWithChats, MatchSummary } from '../../services/userService';
+import { usePalette } from '../../theme/ThemeProvider';
+import { Palette, spacing, radius } from '../../theme';
+import { formatRelativeTime } from '../../utils/time';
 
 export default function ChatScreen({ navigation }: any) {
-  const [matches, setMatches] = useState<UserProfile[]>([]);
+  const [matches, setMatches] = useState<MatchSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const theme = useTheme();
+  const palette = usePalette();
+  const styles = useMemo(() => makeStyles(palette), [palette]);
+  const isFocused = useIsFocused();
 
   const loadMatches = async () => {
     if (auth.currentUser) {
       setLoading(true);
-      const data = await fetchMatches(auth.currentUser.uid);
+      const data = await fetchMatchesWithChats(auth.currentUser.uid);
       setMatches(data);
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadMatches();
-  }, []);
+    if (isFocused) loadMatches();
+  }, [isFocused]);
 
-  const filteredMatches = matches.filter(m =>
-    m.name.toLowerCase().includes(searchQuery.toLowerCase())
+  // New matches = matched but no conversation yet. Active chats = has messages.
+  const newMatches = useMemo(() => matches.filter(m => !m.lastMessageAt), [matches]);
+  const activeChats = useMemo(
+    () =>
+      matches
+        .filter(m => m.lastMessageAt)
+        .sort((a, b) => (b.lastMessageAt || 0) - (a.lastMessageAt || 0)),
+    [matches]
   );
 
-  const renderMatchStory = ({ item }: { item: UserProfile }) => (
+  const filteredChats = useMemo(
+    () => activeChats.filter(m => m.name.toLowerCase().includes(searchQuery.toLowerCase())),
+    [activeChats, searchQuery]
+  );
+
+  const renderMatchStory = ({ item }: { item: MatchSummary }) => (
     <TouchableOpacity
-        style={styles.storyContainer}
-        onPress={() => navigation.navigate('ChatRoom', { recipient: item })}
+      style={styles.storyContainer}
+      onPress={() => navigation.navigate('ChatRoom', { recipient: item })}
+      accessibilityRole="button"
+      accessibilityLabel={`Open chat with ${item.name}`}
     >
-        <View style={styles.storyRing}>
-            {item.photoURL ? (
-                <Avatar.Image size={60} source={{ uri: item.photoURL }} />
-            ) : (
-                <Avatar.Text size={60} label={item.name.substring(0, 2).toUpperCase()} />
-            )}
-        </View>
-        <Text variant="labelMedium" style={styles.storyName} numberOfLines={1}>{item.name.split(' ')[0]}</Text>
+      <View style={styles.storyRing}>
+        {item.photoURL ? (
+          <Avatar.Image size={60} source={{ uri: item.photoURL }} />
+        ) : (
+          <Avatar.Text size={60} label={item.name.substring(0, 2).toUpperCase()} />
+        )}
+      </View>
+      <Text variant="labelMedium" style={styles.storyName} numberOfLines={1}>
+        {item.name.split(' ')[0]}
+      </Text>
     </TouchableOpacity>
   );
 
-  const renderChatItem = ({ item }: { item: UserProfile }) => (
-    <TouchableOpacity onPress={() => navigation.navigate('ChatRoom', { recipient: item })}>
+  const renderChatItem = (item: MatchSummary) => (
+    <TouchableOpacity
+      key={item.uid}
+      onPress={() => navigation.navigate('ChatRoom', { recipient: item })}
+      accessibilityRole="button"
+      accessibilityLabel={`Open chat with ${item.name}`}
+    >
       <List.Item
         title={item.name}
         titleStyle={styles.chatTitle}
-        description={`Skills: ${item.skills.slice(0, 2).join(', ')}`}
+        description={item.lastMessage || 'Say hi 👋'}
         descriptionStyle={styles.chatDesc}
-        left={() => item.photoURL ? (
+        descriptionNumberOfLines={1}
+        left={() =>
+          item.photoURL ? (
             <Avatar.Image size={50} source={{ uri: item.photoURL }} style={styles.chatAvatar} />
-        ) : (
-            <Avatar.Text size={50} label={item.name.substring(0,2).toUpperCase()} style={styles.chatAvatar} />
-        )}
+          ) : (
+            <Avatar.Text size={50} label={item.name.substring(0, 2).toUpperCase()} style={styles.chatAvatar} />
+          )
+        }
         right={props => (
-            <View style={styles.chatRight}>
-                <Text variant="bodySmall" style={styles.chatTime}>Just now</Text>
-                <List.Icon {...props} icon="chevron-right" color="#CBD5E1" />
-            </View>
+          <View style={styles.chatRight}>
+            <Text variant="bodySmall" style={styles.chatTime}>
+              {formatRelativeTime(item.lastMessageAt)}
+            </Text>
+            <List.Icon {...props} icon="chevron-right" color={palette.slate300} />
+          </View>
         )}
       />
       <Divider style={styles.divider} />
@@ -68,156 +101,154 @@ export default function ChatScreen({ navigation }: any) {
   );
 
   if (loading && matches.length === 0) {
-     return (
-        <ScreenWrapper style={[styles.container, styles.center]}>
-            <ActivityIndicator size="large" color={theme.colors.primary} />
-        </ScreenWrapper>
-     );
+    return (
+      <ScreenWrapper>
+        <LoadingView label="Loading your matches…" />
+      </ScreenWrapper>
+    );
+  }
+
+  if (matches.length === 0) {
+    return (
+      <ScreenWrapper>
+        <View style={styles.header}>
+          <Text variant="headlineMedium" style={styles.headerTitle}>Messages</Text>
+        </View>
+        <EmptyState
+          icon="chat-outline"
+          title="No matches yet"
+          subtitle="When you and someone like each other, they'll show up here to chat."
+          actionLabel="Start discovering"
+          onAction={() => navigation.navigate('Home')}
+        />
+      </ScreenWrapper>
+    );
   }
 
   return (
     <ScreenWrapper>
-     <View style={styles.header}>
+      <View style={styles.header}>
         <Text variant="headlineMedium" style={styles.headerTitle}>Messages</Text>
         <Searchbar
-            placeholder="Search conversations"
-            onChangeText={setSearchQuery}
-            value={searchQuery}
-            style={styles.searchBar}
-            inputStyle={styles.searchInput}
+          placeholder="Search conversations"
+          onChangeText={setSearchQuery}
+          value={searchQuery}
+          style={styles.searchBar}
+          inputStyle={styles.searchInput}
         />
-     </View>
+      </View>
 
-     <ScrollView
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={loadMatches} />}
-        contentContainerStyle={{ paddingBottom: 20 }}
-     >
-        {matches.length > 0 && (
-            <View style={styles.storiesSection}>
-                <Text variant="titleSmall" style={styles.sectionTitle}>New Matches</Text>
-                <FlatList
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    data={matches.slice(0, 5)} // Showing first few as "new"
-                    renderItem={renderMatchStory}
-                    keyExtractor={item => `story-${item.uid}`}
-                    contentContainerStyle={styles.storiesList}
-                />
-            </View>
+      <ScrollView
+        refreshControl={<RefreshControl refreshing={loading} onRefresh={loadMatches} tintColor={palette.primary} />}
+        contentContainerStyle={{ paddingBottom: spacing.xl }}
+      >
+        {newMatches.length > 0 && !searchQuery && (
+          <View style={styles.storiesSection}>
+            <Text variant="titleSmall" style={styles.sectionTitle}>New Matches</Text>
+            <FlatList
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              data={newMatches}
+              renderItem={renderMatchStory}
+              keyExtractor={item => `story-${item.uid}`}
+              contentContainerStyle={styles.storiesList}
+            />
+          </View>
         )}
 
         <View style={styles.chatsSection}>
-            <Text variant="titleSmall" style={styles.sectionTitle}>Recent Chats</Text>
-            {filteredMatches.length === 0 ? (
-                <View style={styles.emptyContainer}>
-                    <Text variant="bodyLarge">No conversations found</Text>
-                    <Text variant="bodyMedium" style={styles.emptySub}>Matches will appear here once you both like each other.</Text>
-                </View>
-            ) : (
-                filteredMatches.map(item => (
-                    <View
-                        style={styles.storiesList}
-                        key={item.uid}
-                    >
-                        {renderChatItem({ item })}
-                    </View>
-                ))
-            )}
+          <Text variant="titleSmall" style={styles.sectionTitle}>Recent Chats</Text>
+          {filteredChats.length === 0 ? (
+            <EmptyState
+              icon={searchQuery ? 'magnify' : 'message-text-outline'}
+              title={searchQuery ? 'No conversations found' : 'No conversations yet'}
+              subtitle={
+                searchQuery
+                  ? 'Try a different name.'
+                  : 'Tap a new match above to start chatting.'
+              }
+            />
+          ) : (
+            filteredChats.map(renderChatItem)
+          )}
         </View>
-     </ScrollView>
+      </ScrollView>
     </ScreenWrapper>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
-  center: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  header: {
-    padding: 20,
-    paddingBottom: 10,
-    backgroundColor: '#fff',
-  },
-  headerTitle: {
-    fontWeight: 'bold',
-    marginBottom: 15,
-  },
-  searchBar: {
-    backgroundColor: '#F1F5F9',
-    elevation: 0,
-    borderRadius: 12,
-  },
-  searchInput: {
-    fontSize: 16,
-  },
-  storiesSection: {
-    paddingVertical: 10,
-  },
-  sectionTitle: {
-    paddingHorizontal: 20,
-    color: '#64748B',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    marginBottom: 10,
-  },
-  storiesList: {
-    paddingHorizontal: 15,
-  },
-  storyContainer: {
-    alignItems: 'center',
-    marginHorizontal: 8,
-    width: 70,
-  },
-  storyRing: {
-    padding: 3,
-    borderRadius: 35,
-    borderWidth: 2,
-    borderColor: '#6366f1',
-  },
-  storyName: {
-    marginTop: 5,
-    color: '#1e293b',
-  },
-  chatsSection: {
-    flex: 1,
-    marginTop: 10,
-  },
-  chatAvatar: {
-    marginRight: 10,
-  },
-  chatTitle: {
-    fontWeight: 'bold',
-    color: '#1e293b',
-  },
-  chatDesc: {
-    color: '#64748B',
-  },
-  chatRight: {
-    alignItems: 'flex-end',
-    justifyContent: 'center',
-  },
-  chatTime: {
-    color: '#94A3B8',
-    marginBottom: 5,
-  },
-  divider: {
-    marginLeft: 80,
-    backgroundColor: '#F1F5F9',
-  },
-  emptyContainer: {
-    padding: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emptySub: {
-    textAlign: 'center',
-    color: '#64748B',
-    marginTop: 10,
-  }
-});
+const makeStyles = (palette: Palette) =>
+  StyleSheet.create({
+    header: {
+      padding: spacing.xl,
+      paddingBottom: spacing.sm,
+      backgroundColor: palette.background,
+    },
+    headerTitle: {
+      fontWeight: 'bold',
+      marginBottom: spacing.md,
+      color: palette.slate800,
+    },
+    searchBar: {
+      backgroundColor: palette.slate100,
+      elevation: 0,
+      borderRadius: radius.md,
+    },
+    searchInput: {
+      fontSize: 16,
+    },
+    storiesSection: {
+      paddingVertical: spacing.sm,
+    },
+    sectionTitle: {
+      paddingHorizontal: spacing.xl,
+      color: palette.slate500,
+      textTransform: 'uppercase',
+      letterSpacing: 1,
+      marginBottom: spacing.sm,
+    },
+    storiesList: {
+      paddingHorizontal: spacing.md,
+    },
+    storyContainer: {
+      alignItems: 'center',
+      marginHorizontal: spacing.sm,
+      width: 70,
+    },
+    storyRing: {
+      padding: 3,
+      borderRadius: 35,
+      borderWidth: 2,
+      borderColor: palette.primary,
+    },
+    storyName: {
+      marginTop: spacing.xs,
+      color: palette.slate800,
+    },
+    chatsSection: {
+      flex: 1,
+      marginTop: spacing.sm,
+    },
+    chatAvatar: {
+      marginRight: spacing.sm,
+    },
+    chatTitle: {
+      fontWeight: 'bold',
+      color: palette.slate800,
+    },
+    chatDesc: {
+      color: palette.slate500,
+    },
+    chatRight: {
+      alignItems: 'flex-end',
+      justifyContent: 'center',
+    },
+    chatTime: {
+      color: palette.slate400,
+      marginBottom: spacing.xs,
+    },
+    divider: {
+      marginLeft: 80,
+      backgroundColor: palette.slate100,
+    },
+  });
