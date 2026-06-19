@@ -73,6 +73,7 @@ export default function ChatScreen({ navigation }: any) {
       onPress={() => navigation.navigate('ChatRoom', { recipient: item })}
       accessibilityRole="button"
       accessibilityLabel={`Open chat with ${item.name}`}
+      style={{ paddingLeft: spacing.xxl }}
     >
       <List.Item
         title={item.name}
